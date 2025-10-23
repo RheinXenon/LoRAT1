@@ -134,10 +134,16 @@ class FineTuneAutomation:
         print(f"   超参数: {json.dumps(self.hyper_params, indent=2, ensure_ascii=False)}")
         
         try:
-            from dashscope.fine_tune import FineTune
+            import requests
             
             # 准备参数
-            params = {
+            url = "https://dashscope.aliyuncs.com/api/v1/fine-tunes"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            data = {
                 "model": self.base_model,
                 "training_file_ids": train_file_ids if isinstance(train_file_ids, list) else [train_file_ids],
                 "hyper_parameters": self.hyper_params,
@@ -145,21 +151,23 @@ class FineTuneAutomation:
             }
             
             if validation_file_ids:
-                params["validation_file_ids"] = validation_file_ids if isinstance(validation_file_ids, list) else [validation_file_ids]
+                data["validation_file_ids"] = validation_file_ids if isinstance(validation_file_ids, list) else [validation_file_ids]
             
             # 创建任务
-            response = FineTune.create(**params)
+            response = requests.post(url, headers=headers, json=data)
             
             if response.status_code == 200:
-                job_id = response.output['job_id']
+                result = response.json()
+                job_id = result['output']['job_id']
                 print(f"\n✅ 微调任务创建成功!")
                 print(f"   Job ID: {job_id}")
-                print(f"   状态: {response.output.get('status', 'UNKNOWN')}")
+                print(f"   状态: {result['output'].get('status', 'UNKNOWN')}")
                 print(f"\n💡 提示: 请将以下内容保存到 .env 文件:")
                 print(f"   FINE_TUNE_JOB_ID={job_id}")
                 return job_id
             else:
-                print(f"❌ 创建失败: {response.message}")
+                print(f"❌ 创建失败: HTTP {response.status_code}")
+                print(f"   响应内容: {response.text}")
                 return None
         except Exception as e:
             print(f"❌ 创建出错: {str(e)}")
@@ -170,14 +178,21 @@ class FineTuneAutomation:
     def get_job_status(self, job_id):
         """查询任务状态"""
         try:
-            from dashscope.fine_tune import FineTune
+            import requests
             
-            response = FineTune.get(job_id)
+            url = f"https://dashscope.aliyuncs.com/api/v1/fine-tunes/{job_id}"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}"
+            }
+            
+            response = requests.get(url, headers=headers)
             
             if response.status_code == 200:
-                return response.output
+                result = response.json()
+                return result.get('output', {})
             else:
-                print(f"❌ 查询失败: {response.message}")
+                print(f"❌ 查询失败: HTTP {response.status_code}")
+                print(f"   响应内容: {response.text}")
                 return None
         except Exception as e:
             print(f"❌ 查询出错: {str(e)}")
